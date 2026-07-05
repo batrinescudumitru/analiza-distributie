@@ -3,172 +3,535 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Analiza Repartitiei</title>
-  <script src="https://cdn.jsdelivr.net/npm/shinylive@0.7.0/dist/shinylive.js"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shinylive@0.7.0/dist/shinylive.css" />
+  <title>Analiza Repartitiei — WebR</title>
   <style>
-    body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
-    .shinylive-wrapper { width: 100%; height: 100vh; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background: #f0f2f5; color: #333; }
+
+    header {
+      background: #2c7be5; color: white;
+      padding: 14px 24px; display: flex; align-items: center; gap: 12px;
+    }
+    header h1 { font-size: 1.2em; }
+
+    #loading-overlay {
+      position: fixed; inset: 0; background: rgba(255,255,255,0.95);
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; z-index: 999; text-align: center; padding: 20px;
+    }
+    .spinner {
+      width: 56px; height: 56px; border: 6px solid #ddd;
+      border-top-color: #2c7be5; border-radius: 50%;
+      animation: spin 0.9s linear infinite; margin-bottom: 18px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading-overlay h2 { color: #2c7be5; margin-bottom: 8px; }
+    #loading-overlay p  { color: #666; font-size: 0.9em; }
+    #loading-status { margin-top: 10px; font-size: 0.85em; color: #888; min-height: 20px; }
+
+    .layout { display: flex; gap: 0; height: calc(100vh - 52px); }
+
+    .sidebar {
+      width: 280px; min-width: 280px; background: white;
+      border-right: 1px solid #ddd; padding: 16px; overflow-y: auto;
+    }
+    .sidebar h3 { font-size: 0.95em; color: #555; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px; color: #444; }
+    .form-group input[type=file],
+    .form-group select,
+    .form-group input[type=number] {
+      width: 100%; padding: 7px 9px; border: 1px solid #ccc;
+      border-radius: 4px; font-size: 0.9em; background: white;
+    }
+    .form-group small { color: #888; font-size: 0.78em; display: block; margin-top: 3px; }
+
+    .btn {
+      width: 100%; padding: 10px; border: none; border-radius: 5px;
+      font-size: 0.95em; cursor: pointer; font-weight: bold; margin-bottom: 8px;
+    }
+    .btn-primary { background: #2c7be5; color: white; }
+    .btn-primary:hover { background: #1a68d1; }
+    .btn-primary:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-ai { background: #10a37f; color: white; display: none; }
+    .btn-ai:hover { background: #0d8a6b; }
+
+    hr { border: none; border-top: 1px solid #eee; margin: 14px 0; }
+
+    .main { flex: 1; overflow-y: auto; padding: 16px; }
+
+    .tabs { display: flex; gap: 4px; margin-bottom: 14px; flex-wrap: wrap; }
+    .tab-btn {
+      padding: 7px 16px; border: 1px solid #ddd; border-radius: 4px;
+      background: white; cursor: pointer; font-size: 0.9em; color: #555;
+    }
+    .tab-btn.active { background: #2c7be5; color: white; border-color: #2c7be5; }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .card {
+      background: white; border-radius: 8px; padding: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 14px;
+    }
+    .card h4 { font-size: 0.9em; color: #888; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    canvas { width: 100% !important; max-height: 380px; }
+
+    pre {
+      background: #f8f9fa; border: 1px solid #e9ecef;
+      border-radius: 4px; padding: 12px; font-size: 0.85em;
+      white-space: pre-wrap; line-height: 1.5;
+    }
+
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px;
+    }
+    .stat-box {
+      background: #f8f9fa; border-radius: 6px; padding: 10px; text-align: center;
+    }
+    .stat-box .val { font-size: 1.3em; font-weight: bold; color: #2c7be5; }
+    .stat-box .lbl { font-size: 0.75em; color: #888; margin-top: 2px; }
+
+    .test-result {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 14px; border-radius: 6px; margin-bottom: 8px;
+      background: #f8f9fa;
+    }
+    .test-result .name { font-weight: bold; font-size: 0.9em; }
+    .test-result .vals { font-size: 0.82em; color: #666; }
+    .badge {
+      padding: 3px 10px; border-radius: 12px; font-size: 0.8em; font-weight: bold;
+    }
+    .badge-normal { background: #d4edda; color: #155724; }
+    .badge-nonnormal { background: #f8d7da; color: #721c24; }
+
+    .dist-chip {
+      display: inline-block; background: #e8f4fd; color: #1a5f9e;
+      border: 1px solid #bee5eb; border-radius: 16px;
+      padding: 5px 14px; margin: 4px; font-size: 0.88em; font-weight: bold;
+    }
+
+    .ai-prompt-box {
+      background: #f0faf5; border: 1px solid #b2dfdb;
+      border-radius: 6px; padding: 12px; font-size: 0.82em;
+      white-space: pre-wrap; line-height: 1.5; max-height: 300px; overflow-y: auto;
+    }
+
+    #msg { font-size: 0.82em; color: #e74c3c; margin-top: 6px; min-height: 18px; }
+
+    @media (max-width: 700px) {
+      .layout { flex-direction: column; height: auto; }
+      .sidebar { width: 100%; min-width: unset; }
+    }
   </style>
 </head>
 <body>
-  <div class="shinylive-wrapper">
-    <script type="text/r" data-engine="webr">
-library(shiny)
-library(ggplot2)
-library(moments)
 
-ui <- fluidPage(
-  titlePanel("Analiza repartitiei pentru date numerice"),
-  tags$head(tags$style(HTML("
-    .btn-ai { background:#10a37f; color:white; border:none; width:100%;
-              padding:8px; border-radius:4px; cursor:pointer; font-size:14px; margin-top:8px; }
-    .btn-ai:hover { background:#0d8a6b; }
-  "))),
-  sidebarLayout(
-    sidebarPanel(width=3,
-      fileInput("file", "Incarca fisier CSV", accept=c(".csv","text/csv")),
-      tags$small(tags$em("Separator: virgula sau punct-virgula")),
-      hr(),
-      uiOutput("column_selector"),
-      hr(),
-      numericInput("bins","Numar bin-uri histograma:",value=30,min=5,max=100),
-      actionButton("analyze","Analizeaza distributia",class="btn-primary",width="100%"),
-      hr(),
-      uiOutput("ai_button_ui")
-    ),
-    mainPanel(width=9,
-      tabsetPanel(
-        tabPanel("Vizualizari",
-          plotOutput("histogram_plot",height="450px"),
-          plotOutput("qq_plot",height="350px")
-        ),
-        tabPanel("Teste statistice", verbatimTextOutput("test_results")),
-        tabPanel("Distributii sugerate", verbatimTextOutput("distribution_suggestions")),
-        tabPanel("Interpretare AI", uiOutput("ai_section"))
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <h2>🔬 Se incarca WebR...</h2>
+  <p>Prima incarcare dureaza 20-40 secunde.<br>Mediul R ruleaza direct in browser, fara server.</p>
+  <div id="loading-status">Initializing...</div>
+</div>
+
+<header>
+  <span style="font-size:1.6em">🔬</span>
+  <h1>Analiza Repartitiei pentru Date Numerice</h1>
+</header>
+
+<div class="layout">
+  <div class="sidebar">
+    <h3>Date</h3>
+    <div class="form-group">
+      <label>Fisier CSV</label>
+      <input type="file" id="fileInput" accept=".csv">
+      <small>Separator virgula sau punct-virgula</small>
+    </div>
+    <div class="form-group">
+      <label>Coloana numerica</label>
+      <select id="colSelect" disabled><option>— incarca un fisier —</option></select>
+    </div>
+    <hr>
+    <h3>Optiuni</h3>
+    <div class="form-group">
+      <label>Numar bin-uri histograma</label>
+      <input type="number" id="binsInput" value="30" min="5" max="100">
+    </div>
+    <button class="btn btn-primary" id="analyzeBtn" disabled>🚀 Analizeaza distributia</button>
+    <div id="msg"></div>
+    <hr>
+    <button class="btn btn-ai" id="aiBtn">🤖 Interpreteaza cu ChatGPT</button>
+  </div>
+
+  <div class="main">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="viz">📊 Vizualizari</button>
+      <button class="tab-btn" data-tab="tests">📈 Teste statistice</button>
+      <button class="tab-btn" data-tab="dist">📋 Distributii</button>
+      <button class="tab-btn" data-tab="ai">🤖 Interpretare AI</button>
+    </div>
+
+    <div class="tab-panel active" id="tab-viz">
+      <div class="card">
+        <h4>Histograma + Densitate</h4>
+        <canvas id="histCanvas"></canvas>
+      </div>
+      <div class="card">
+        <h4>Q-Q Plot (normalitate)</h4>
+        <canvas id="qqCanvas"></canvas>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-tests">
+      <div class="card">
+        <h4>Statistici descriptive</h4>
+        <div class="stats-grid" id="statsGrid">
+          <div class="stat-box"><div class="val">—</div><div class="lbl">N</div></div>
+          <div class="stat-box"><div class="val">—</div><div class="lbl">Medie</div></div>
+          <div class="stat-box"><div class="val">—</div><div class="lbl">Mediana</div></div>
+          <div class="stat-box"><div class="val">—</div><div class="lbl">SD</div></div>
+          <div class="stat-box"><div class="val">—</div><div class="lbl">Skewness</div></div>
+          <div class="stat-box"><div class="val">—</div><div class="lbl">Kurtosis</div></div>
+          <div class="stat-box"><div class="val">—</div><div class="lbl">Min</div></div>
+          <div class="stat-box"><div class="val">—</div><div class="lbl">Max</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h4>Teste de normalitate</h4>
+        <div id="testResults"><p style="color:#aaa">Ruleaza analiza pentru rezultate.</p></div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-dist">
+      <div class="card">
+        <h4>Distributii sugerate</h4>
+        <div id="distResults"><p style="color:#aaa">Ruleaza analiza pentru rezultate.</p></div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-ai">
+      <div class="card">
+        <h4>Interpretare cu AI</h4>
+        <p id="aiIntro" style="color:#aaa; margin-bottom:12px;">
+          Ruleaza analiza, apoi apasa butonul din bara laterala.<br>
+          ChatGPT se va deschide cu toate rezultatele pre-completate in romana.
+        </p>
+        <div id="aiPromptBox" style="display:none">
+          <p style="margin-bottom:8px; font-size:0.9em;"><strong>Prompt care va fi trimis catre ChatGPT:</strong></p>
+          <div class="ai-prompt-box" id="aiPromptText"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Chart.js pentru grafice -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- WebR -->
+<script type="module">
+import { WebR } from 'https://webr.r-wasm.org/latest/webr.mjs';
+
+const status = document.getElementById('loading-status');
+const overlay = document.getElementById('loading-overlay');
+
+// ── Initializare WebR ──────────────────────────────────────────────
+const webR = new WebR();
+status.textContent = 'Descarcare WebR...';
+await webR.init();
+status.textContent = 'Incarcare pachete R...';
+await webR.installPackages(['moments'], { quiet: true });
+await webR.evalR('library(moments)');
+status.textContent = 'Gata!';
+overlay.style.display = 'none';
+
+// ── State ──────────────────────────────────────────────────────────
+let csvData = null;
+let analysisResult = null;
+let histChart = null, qqChart = null;
+
+// ── Tab switching ──────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ── Citire CSV ─────────────────────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+
+  // Detecteaza separator
+  const firstLine = text.split('\n')[0];
+  const sep = firstLine.includes(';') ? ';' : ',';
+
+  // Parse CSV simplu
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(sep).map(h => h.trim().replace(/^"|"$/g, ''));
+  const rows = lines.slice(1).map(l => l.split(sep).map(v => v.trim().replace(/^"|"$/g, '')));
+
+  csvData = { headers, rows, sep };
+
+  // Identifica coloane numerice
+  const numCols = headers.filter((h, i) => {
+    const vals = rows.map(r => parseFloat(r[i])).filter(v => !isNaN(v));
+    return vals.length > 2;
+  });
+
+  const sel = document.getElementById('colSelect');
+  sel.innerHTML = numCols.map(c => `<option value="${c}">${c}</option>`).join('');
+  sel.disabled = false;
+  document.getElementById('analyzeBtn').disabled = false;
+  document.getElementById('msg').textContent = `✅ ${rows.length} randuri incarcate, ${numCols.length} coloane numerice.`;
+});
+
+// ── Analiza ────────────────────────────────────────────────────────
+document.getElementById('analyzeBtn').addEventListener('click', async () => {
+  if (!csvData) return;
+
+  const col = document.getElementById('colSelect').value;
+  const bins = parseInt(document.getElementById('binsInput').value) || 30;
+  const idx = csvData.headers.indexOf(col);
+  const values = csvData.rows.map(r => parseFloat(r[idx])).filter(v => !isNaN(v));
+
+  if (values.length < 3) {
+    document.getElementById('msg').textContent = '⚠️ Minim 3 valori necesare.';
+    return;
+  }
+
+  document.getElementById('msg').textContent = '⏳ Se calculeaza...';
+  document.getElementById('analyzeBtn').disabled = true;
+
+  try {
+    // Trimite valorile la WebR si calculeaza
+    await webR.objs.globalEnv.bind('values', values);
+    const result = await webR.evalR(`
+      library(moments)
+      n    <- length(values)
+      m    <- mean(values)
+      med  <- median(values)
+      s    <- sd(values)
+      skew <- skewness(values)
+      kurt <- kurtosis(values)
+      mn   <- min(values)
+      mx   <- max(values)
+
+      # Shapiro-Wilk
+      sw_stat <- NA; sw_p <- NA
+      if (n >= 3 && n <= 5000) {
+        sw <- shapiro.test(values)
+        sw_stat <- sw$statistic
+        sw_p    <- sw$p.value
+      }
+
+      # Kolmogorov-Smirnov
+      ks <- ks.test(values, "pnorm", mean=m, sd=s)
+      ks_stat <- ks$statistic
+      ks_p    <- ks$p.value
+
+      # Cuantile pentru Q-Q plot
+      n_qq <- min(n, 200)
+      probs <- seq(0.01, 0.99, length.out=n_qq)
+      theoretical <- qnorm(probs)
+      empirical   <- quantile(values, probs)
+
+      # Histograma bins
+      h <- hist(values, breaks=${bins}, plot=FALSE)
+
+      list(
+        n=n, mean=m, median=med, sd=s, skewness=skew, kurtosis=kurt,
+        min=mn, max=mx,
+        sw_stat=sw_stat, sw_p=sw_p,
+        ks_stat=ks_stat, ks_p=ks_p,
+        hist_mids=h$mids, hist_density=h$density,
+        qq_theor=theoretical, qq_emp=as.numeric(empirical)
       )
-    )
-  )
-)
+    `);
 
-server <- function(input, output, session) {
-  analysis_done <- reactiveVal(FALSE)
-  stats_text    <- reactiveVal("")
-
-  data <- reactive({
-    req(input$file)
-    tryCatch({
-      df <- tryCatch(read.csv(input$file$datapath, stringsAsFactors=FALSE), error=function(e) NULL)
-      if (is.null(df) || ncol(df) <= 1)
-        df <- read.csv2(input$file$datapath, stringsAsFactors=FALSE)
-      df
-    }, error=function(e){ showNotification(paste("Eroare:",e$message),type="error"); NULL })
-  })
-
-  output$column_selector <- renderUI({
-    req(data())
-    cols <- names(data())[sapply(data(), is.numeric)]
-    if (length(cols)==0) return(p("Nu exista coloane numerice."))
-    selectInput("column","Selecteaza coloana numerica:",choices=cols)
-  })
-
-  get_values <- reactive({
-    req(data(), input$column)
-    v <- data()[[input$column]]
-    v[!is.na(v)]
-  })
-
-  output$ai_button_ui <- renderUI({
-    req(analysis_done())
-    url <- paste0("https://chatgpt.com/?q=", URLencode(stats_text(), reserved=TRUE))
-    tags$a(href=url, target="_blank",
-      tags$button("Interpreteaza cu ChatGPT", class="btn-ai"))
-  })
-
-  output$ai_section <- renderUI({
-    if (!analysis_done()) return(p("Ruleaza mai intai analiza."))
-    tagList(
-      p("Apasa butonul din bara laterala — ChatGPT se deschide cu rezultatele."),
-      hr(),
-      p(tags$strong("Prompt trimis:")),
-      tags$pre(style="white-space:pre-wrap;font-size:12px;background:#f0f9f5;padding:10px;border-radius:4px;",
-        stats_text())
-    )
-  })
-
-  observeEvent(input$analyze, {
-    values <- get_values()
-    req(length(values) >= 3)
-    n <- length(values); m <- mean(values); med <- median(values)
-    s <- sd(values); skew <- skewness(values); kurt <- kurtosis(values)
-    mn <- min(values); mx <- max(values)
-
-    output$histogram_plot <- renderPlot({
-      ggplot(data.frame(x=values), aes(x=x)) +
-        geom_histogram(aes(y=after_stat(density)), bins=input$bins, fill="steelblue", color="white", alpha=0.7) +
-        geom_density(color="red", linewidth=1.2) +
-        labs(title=paste("Histograma -",input$column), x=input$column, y="Densitate") +
-        theme_minimal()
-    })
-
-    output$qq_plot <- renderPlot({
-      ggplot(data.frame(sample=values), aes(sample=sample)) +
-        stat_qq(color="steelblue", size=2) + stat_qq_line(color="red", linewidth=1.2) +
-        labs(title=paste("Q-Q Plot -",input$column), x="Cuantile teoretice", y="Cuantile observate") +
-        theme_minimal()
-    })
-
-    sw_text <- ""
-    if (n >= 3 && n <= 5000) {
-      sw <- shapiro.test(values)
-      sw_text <- sprintf("Shapiro-Wilk: W=%.4f, p=%.4f (%s)", sw$statistic, sw$p.value,
-        ifelse(sw$p.value > 0.05, "Normal", "Non-normal"))
+    const r = await result.toJs();
+    const d = {};
+    for (const item of r.values) {
+      d[item.name] = item.values.length === 1 ? item.values[0] : item.values;
     }
-    ks <- ks.test(values, "pnorm", mean=m, sd=s)
-    ks_text <- sprintf("Kolmogorov-Smirnov: D=%.4f, p=%.4f (%s)", ks$statistic, ks$p.value,
-      ifelse(ks$p.value > 0.05, "Normal", "Non-normal"))
 
-    dist_list <- c()
-    if (abs(skew) < 0.5 && abs(kurt-3) < 0.5) dist_list <- c(dist_list,"NORMALA")
-    if (skew > 0.5 && all(values > 0))          dist_list <- c(dist_list,"LOG-NORMALA")
-    if (abs(skew-2) < 0.8 && all(values > 0))   dist_list <- c(dist_list,"EXPONENTIALA")
-    if (skew > 0.3 && skew < 2 && all(values > 0)) dist_list <- c(dist_list,"GAMMA")
-    if (all(values >= 0 & values <= 1))          dist_list <- c(dist_list,"BETA")
-    if (length(dist_list)==0) dist_list <- "Analiza suplimentara necesara"
+    analysisResult = { col, values, bins, d };
 
-    output$test_results <- renderPrint({
-      cat("=== STATISTICI DESCRIPTIVE ===\n")
-      cat("  N:",n,"\n  Medie:",round(m,4),"\n  Mediana:",round(med,4),
-          "\n  SD:",round(s,4),"\n  Skewness:",round(skew,4),
-          "\n  Kurtosis:",round(kurt,4),"\n  Min:",round(mn,4),"Max:",round(mx,4),"\n\n")
-      cat("=== TESTE DE NORMALITATE ===\n")
-      cat(sw_text,"\n",ks_text,"\n")
-    })
+    renderStats(d);
+    renderTests(d);
+    renderDists(d);
+    renderCharts(d, col, bins);
 
-    output$distribution_suggestions <- renderPrint({
-      cat("=== DISTRIBUTII SUGERATE ===\n")
-      for (d in dist_list) cat(" *",d,"\n")
-    })
+    document.getElementById('msg').textContent = '✅ Analiza completa!';
+    buildAIPrompt(col, d);
+    document.getElementById('aiBtn').style.display = 'block';
 
-    prompt <- paste0(
-      "Sunt student si am rulat o analiza statistica in R.\n",
-      "COLOANA: ",input$column,"\n",
-      "N=",n,", Medie=",round(m,4),", Mediana=",round(med,4),
-      ", SD=",round(s,4),", Skewness=",round(skew,4),", Kurtosis=",round(kurt,4),"\n",
-      "Min=",round(mn,4),", Max=",round(mx,4),"\n",
-      sw_text,"\n",ks_text,"\n",
-      "Distributii sugerate: ",paste(dist_list,collapse=", "),"\n\n",
-      "Te rog: 1) explica skewness si kurtosis; 2) interpreteaza testele; ",
-      "3) confirma distributiile; 4) recomanda metode statistice potrivite."
-    )
-    stats_text(prompt)
-    analysis_done(TRUE)
-    showNotification("Analiza completa!", type="message")
-  })
+  } catch(err) {
+    document.getElementById('msg').textContent = '❌ Eroare: ' + err.message;
+    console.error(err);
+  }
+
+  document.getElementById('analyzeBtn').disabled = false;
+});
+
+// ── Render statistici ──────────────────────────────────────────────
+function fmt(v) {
+  if (v === null || v === undefined || isNaN(v)) return '—';
+  return Number(v).toFixed(4);
 }
 
-shinyApp(ui, server)
-    </script>
-  </div>
+function renderStats(d) {
+  const vals = [d.n, fmt(d.mean), fmt(d.median), fmt(d.sd),
+                fmt(d.skewness), fmt(d.kurtosis), fmt(d.min), fmt(d.max)];
+  const lbls = ['N','Medie','Mediana','SD','Skewness','Kurtosis','Min','Max'];
+  document.getElementById('statsGrid').innerHTML = vals.map((v,i) =>
+    `<div class="stat-box"><div class="val">${v}</div><div class="lbl">${lbls[i]}</div></div>`
+  ).join('');
+}
+
+function renderTests(d) {
+  let html = '';
+
+  if (!isNaN(d.sw_stat) && !isNaN(d.sw_p)) {
+    const normal = d.sw_p > 0.05;
+    html += `<div class="test-result">
+      <div><div class="name">Shapiro-Wilk</div>
+      <div class="vals">W = ${fmt(d.sw_stat)} &nbsp;|&nbsp; p = ${fmt(d.sw_p)}</div></div>
+      <span class="badge ${normal ? 'badge-normal' : 'badge-nonnormal'}">${normal ? '✅ Normal' : '❌ Non-normal'}</span>
+    </div>`;
+  }
+
+  const ksNormal = d.ks_p > 0.05;
+  html += `<div class="test-result">
+    <div><div class="name">Kolmogorov-Smirnov</div>
+    <div class="vals">D = ${fmt(d.ks_stat)} &nbsp;|&nbsp; p = ${fmt(d.ks_p)}</div></div>
+    <span class="badge ${ksNormal ? 'badge-normal' : 'badge-nonnormal'}">${ksNormal ? '✅ Normal' : '❌ Non-normal'}</span>
+  </div>`;
+
+  document.getElementById('testResults').innerHTML = html;
+}
+
+function renderDists(d) {
+  const skew = d.skewness, kurt = d.kurtosis;
+  const vals = analysisResult.values;
+  const allPos = vals.every(v => v > 0);
+  const between01 = vals.every(v => v >= 0 && v <= 1);
+
+  const dists = [];
+  if (Math.abs(skew) < 0.5 && Math.abs(kurt - 3) < 0.5) dists.push('Normala');
+  if (skew > 0.5 && allPos)                               dists.push('Log-normala');
+  if (Math.abs(skew - 2) < 0.8 && allPos)                dists.push('Exponentiala');
+  if (skew > 0.3 && skew < 2 && allPos)                  dists.push('Gamma');
+  if (between01)                                          dists.push('Beta');
+  if (Math.abs(skew) < 0.1 && Math.abs(kurt - 1.8) < 0.2) dists.push('Uniforma');
+
+  document.getElementById('distResults').innerHTML = dists.length
+    ? dists.map(d => `<span class="dist-chip">✅ ${d}</span>`).join('')
+    : '<p style="color:#888">Nicio distributie clasica identificata — analiza suplimentara necesara.</p>';
+}
+
+// ── Grafice ────────────────────────────────────────────────────────
+function renderCharts(d, col, bins) {
+  // Histograma
+  if (histChart) histChart.destroy();
+  histChart = new Chart(document.getElementById('histCanvas'), {
+    type: 'bar',
+    data: {
+      labels: d.hist_mids.map(v => Number(v).toFixed(2)),
+      datasets: [{
+        label: 'Densitate',
+        data: d.hist_density,
+        backgroundColor: 'rgba(44,123,229,0.6)',
+        borderColor: 'rgba(44,123,229,0.9)',
+        borderWidth: 1,
+        barPercentage: 1.0,
+        categoryPercentage: 1.0
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false },
+        title: { display: true, text: `Histograma — ${col}` }},
+      scales: { x: { title: { display: true, text: col }},
+                y: { title: { display: true, text: 'Densitate' }}}
+    }
+  });
+
+  // Q-Q Plot
+  if (qqChart) qqChart.destroy();
+  const qqData = d.qq_theor.map((t, i) => ({ x: t, y: d.qq_emp[i] }));
+  const minT = Math.min(...d.qq_theor), maxT = Math.max(...d.qq_theor);
+  const minE = Math.min(...d.qq_emp),   maxE = Math.max(...d.qq_emp);
+  const lineData = [{ x: minT, y: minE }, { x: maxT, y: maxE }];
+
+  qqChart = new Chart(document.getElementById('qqCanvas'), {
+    type: 'scatter',
+    data: {
+      datasets: [
+        { label: 'Date', data: qqData, pointRadius: 3,
+          backgroundColor: 'rgba(44,123,229,0.6)' },
+        { label: 'Linie referinta', data: lineData, type: 'line',
+          borderColor: 'red', borderWidth: 2, pointRadius: 0, fill: false }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { title: { display: true, text: `Q-Q Plot — ${col}` }},
+      scales: {
+        x: { title: { display: true, text: 'Cuantile teoretice' }},
+        y: { title: { display: true, text: 'Cuantile observate' }}
+      }
+    }
+  });
+}
+
+// ── Prompt ChatGPT ─────────────────────────────────────────────────
+function buildAIPrompt(col, d) {
+  const dists = document.getElementById('distResults').innerText;
+  const swLine = !isNaN(d.sw_stat)
+    ? `Shapiro-Wilk: W=${fmt(d.sw_stat)}, p=${fmt(d.sw_p)} (${d.sw_p > 0.05 ? 'Normal' : 'Non-normal'})`
+    : '';
+
+  const prompt =
+`Sunt student si am rulat o analiza statistica a distributiei unui set de date in R.
+Te rog sa interpretezi rezultatele de mai jos in termeni simpli.
+
+COLOANA ANALIZATA: ${col}
+
+STATISTICI DESCRIPTIVE:
+  N = ${d.n}
+  Medie = ${fmt(d.mean)}
+  Mediana = ${fmt(d.median)}
+  Abatere standard = ${fmt(d.sd)}
+  Skewness = ${fmt(d.skewness)}
+  Kurtosis = ${fmt(d.kurtosis)}
+  Min = ${fmt(d.min)}, Max = ${fmt(d.max)}
+
+TESTE DE NORMALITATE:
+  ${swLine}
+  Kolmogorov-Smirnov: D=${fmt(d.ks_stat)}, p=${fmt(d.ks_p)} (${d.ks_p > 0.05 ? 'Normal' : 'Non-normal'})
+
+DISTRIBUTII SUGERATE: ${dists}
+
+Te rog:
+1) Explica ce inseamna valorile skewness si kurtosis obtinute
+2) Interpreteaza rezultatele testelor de normalitate
+3) Confirma sau infirma distributiile sugerate
+4) Recomanda ce metode statistice sunt potrivite pentru aceste date`;
+
+  document.getElementById('aiPromptText').textContent = prompt;
+  document.getElementById('aiPromptBox').style.display = 'block';
+  document.getElementById('aiIntro').style.display = 'none';
+
+  document.getElementById('aiBtn').onclick = () => {
+    window.open('https://chatgpt.com/?q=' + encodeURIComponent(prompt), '_blank');
+  };
+}
+</script>
 </body>
 </html>
