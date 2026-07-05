@@ -354,10 +354,13 @@ document.getElementById('analyzeBtn').addEventListener('click', async () => {
       )
     `);
 
-    const r = await result.toJs();
+    // WebR returneaza un RList — extragem fiecare element pe nume
     const d = {};
-    for (const item of r.values) {
-      d[item.name] = item.values.length === 1 ? item.values[0] : item.values;
+    const names = await (await result.get('names')).toArray();
+    for (const name of names) {
+      const el = await result.get(name);
+      const arr = await el.toArray();
+      d[name] = arr.length === 1 ? arr[0] : arr;
     }
 
     analysisResult = { col, values, bins, d };
