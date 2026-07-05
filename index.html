@@ -3,18 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Analiza Repartiției — WebR</title>
-
-  <!-- Shinylive CSS & JS -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shinylive@0.5.0/dist/shinylive.css">
-  <script src="https://cdn.jsdelivr.net/npm/shinylive@0.5.0/dist/shinylive.js"></script>
-
+  <title>Analiza Repartitiei</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shinylive@0.7.0/dist/shinylive.css" />
   <style>
-    body { margin: 0; padding: 0; background: #f5f5f5; }
+    body { margin: 0; font-family: Arial, sans-serif; }
     #loading {
       display: flex; flex-direction: column; align-items: center;
-      justify-content: center; height: 100vh;
-      font-family: Arial, sans-serif; color: #555;
+      justify-content: center; height: 100vh; background: #f5f5f5;
+      color: #444;
     }
     .spinner {
       width: 50px; height: 50px; border: 5px solid #ddd;
@@ -22,7 +18,6 @@
       animation: spin 1s linear infinite; margin-bottom: 20px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    #app { display: none; }
     #shinylive-container { width: 100%; height: 100vh; }
   </style>
 </head>
@@ -30,17 +25,16 @@
 
 <div id="loading">
   <div class="spinner"></div>
-  <h2>🔬 Se încarcă aplicația...</h2>
-  <p>Prima încărcare durează ~30 secunde (WebR descarcă mediul R)</p>
+  <h2>🔬 Se incarca aplicatia R...</h2>
+  <p>Prima incarcare dureaza ~30-60 secunde (WebR descarca mediul R in browser)</p>
+  <p><small>Nu inchide pagina!</small></p>
 </div>
 
-<div id="app">
-  <div id="shinylive-container"></div>
-</div>
+<div id="shinylive-container" style="display:none"></div>
 
-<script type="text/javascript">
-  // Codul aplicației R (app.R)
-  const appCode = `
+<script src="https://cdn.jsdelivr.net/npm/shinylive@0.7.0/dist/shinylive.js"></script>
+<script>
+const appCode = `
 library(shiny)
 library(ggplot2)
 library(moments)
@@ -48,32 +42,32 @@ library(moments)
 ui <- fluidPage(
   titlePanel("Analiza repartitiei pentru date numerice"),
   tags$head(tags$style(HTML("
-    .btn-ai { background-color: #10a37f; color: white; border: none; }
-    .btn-ai:hover { background-color: #0d8a6b; color: white; }
+    .btn-ai { background-color: #10a37f; color: white; border: none; width: 100%; margin-top: 8px; padding: 8px; border-radius: 4px; cursor: pointer; font-size: 14px; }
+    .btn-ai:hover { background-color: #0d8a6b; }
   "))),
   sidebarLayout(
     sidebarPanel(
       width = 3,
-      fileInput("file", "Incarca fisier CSV", accept = c(".csv", "text/csv")),
-      tags$small(tags$em("Fisierul trebuie sa fie CSV")),
+      fileInput('file', 'Incarca fisier CSV', accept = c('.csv', 'text/csv')),
+      tags$small(tags$em('Separator: virgula sau punct-virgula')),
       hr(),
-      uiOutput("column_selector"),
+      uiOutput('column_selector'),
       hr(),
-      numericInput("bins", "Numar bin-uri histograma:", value = 30, min = 5, max = 100),
-      actionButton("analyze", "Analizeaza distributia", class = "btn-primary", width = "100%"),
+      numericInput('bins', 'Numar bin-uri histograma:', value = 30, min = 5, max = 100),
+      actionButton('analyze', 'Analizeaza distributia', class = 'btn-primary', width = '100%'),
       hr(),
-      uiOutput("ai_button_ui")
+      uiOutput('ai_button_ui')
     ),
     mainPanel(
       width = 9,
       tabsetPanel(
-        tabPanel("Vizualizari",
-          plotOutput("histogram_plot", height = "500px"),
-          plotOutput("qq_plot", height = "400px")
+        tabPanel('Vizualizari',
+          plotOutput('histogram_plot', height = '450px'),
+          plotOutput('qq_plot', height = '350px')
         ),
-        tabPanel("Teste statistice", verbatimTextOutput("test_results")),
-        tabPanel("Distributii sugerate", verbatimTextOutput("distribution_suggestions")),
-        tabPanel("Interpretare AI", uiOutput("ai_section"))
+        tabPanel('Teste statistice', verbatimTextOutput('test_results')),
+        tabPanel('Distributii sugerate', verbatimTextOutput('distribution_suggestions')),
+        tabPanel('Interpretare AI', uiOutput('ai_section'))
       )
     )
   )
@@ -81,65 +75,58 @@ ui <- fluidPage(
 
 server <- function(input, output, session) {
   analysis_done <- reactiveVal(FALSE)
-  stats_text    <- reactiveVal("")
+  stats_text    <- reactiveVal('')
 
   data <- reactive({
-    req(input$file)
+    req(input\$file)
     tryCatch({
       df <- tryCatch(
-        read.csv(input$file$datapath, stringsAsFactors = FALSE),
+        read.csv(input\$file\$datapath, stringsAsFactors = FALSE),
         error = function(e) NULL
       )
-      if (is.null(df) || ncol(df) <= 1) {
-        df <- read.csv2(input$file$datapath, stringsAsFactors = FALSE)
-      }
+      if (is.null(df) || ncol(df) <= 1)
+        df <- read.csv2(input\$file\$datapath, stringsAsFactors = FALSE)
       df
     }, error = function(e) {
-      showNotification(paste("Eroare:", e$message), type = "error")
+      showNotification(paste('Eroare:', e\$message), type = 'error')
       NULL
     })
   })
 
-  output$column_selector <- renderUI({
+  output\$column_selector <- renderUI({
     req(data())
-    df <- data()
-    numeric_cols <- names(df)[sapply(df, is.numeric)]
-    if (length(numeric_cols) == 0) return(p("Nu exista coloane numerice."))
-    selectInput("column", "Selecteaza coloana numerica:", choices = numeric_cols)
+    cols <- names(data())[sapply(data(), is.numeric)]
+    if (length(cols) == 0) return(p('Nu exista coloane numerice.'))
+    selectInput('column', 'Selecteaza coloana numerica:', choices = cols)
   })
 
   get_values <- reactive({
-    req(data(), input$column)
-    df <- data()
-    values <- df[[input$column]]
-    values[!is.na(values)]
+    req(data(), input\$column)
+    v <- data()[[input\$column]]
+    v[!is.na(v)]
   })
 
-  output$ai_button_ui <- renderUI({
+  output\$ai_button_ui <- renderUI({
     req(analysis_done())
     prompt_enc <- URLencode(stats_text(), reserved = TRUE)
-    url <- paste0("https://chatgpt.com/?q=", prompt_enc)
-    tags$a(
-      href = url, target = "_blank",
-      tags$button("Interpreteaza cu ChatGPT",
-                  class = "btn btn-block btn-ai",
-                  style = "width:100%; margin-top:5px;")
-    )
+    url <- paste0('https://chatgpt.com/?q=', prompt_enc)
+    tags\$a(href = url, target = '_blank',
+      tags\$button('Interpreteaza cu ChatGPT', class = 'btn-ai'))
   })
 
-  output$ai_section <- renderUI({
-    if (!analysis_done()) {
-      return(p("Ruleaza mai intai analiza, apoi apasa butonul de interpretare AI."))
-    }
+  output\$ai_section <- renderUI({
+    if (!analysis_done())
+      return(p('Ruleaza mai intai analiza, apoi apasa butonul din stanga.'))
     tagList(
-      p("Apasa butonul din bara laterala pentru a deschide ChatGPT cu rezultatele pre-completate."),
+      p('Apasa butonul din bara laterala — ChatGPT se deschide cu rezultatele pre-completate.'),
       hr(),
-      p(tags$strong("Prompt care va fi trimis:")),
-      tags$pre(style = "white-space: pre-wrap; font-size: 12px;", stats_text())
+      p(tags\$strong('Prompt trimis catre ChatGPT:')),
+      tags\$pre(style = 'white-space:pre-wrap;font-size:12px;background:#f0f9f5;padding:10px;border-radius:4px;',
+        stats_text())
     )
   })
 
-  observeEvent(input$analyze, {
+  observeEvent(input\$analyze, {
     values <- get_values()
     req(length(values) >= 3)
 
@@ -152,107 +139,100 @@ server <- function(input, output, session) {
     mn   <- min(values)
     mx   <- max(values)
 
-    output$histogram_plot <- renderPlot({
-      df_plot <- data.frame(x = values)
-      ggplot(df_plot, aes(x = x)) +
+    output\$histogram_plot <- renderPlot({
+      ggplot(data.frame(x = values), aes(x = x)) +
         geom_histogram(aes(y = after_stat(density)),
-                       bins = input$bins, fill = "steelblue", color = "white", alpha = 0.7) +
-        geom_density(color = "red", linewidth = 1.2) +
-        labs(title = paste("Histograma -", input$column), x = input$column, y = "Densitate") +
+          bins = input\$bins, fill = 'steelblue', color = 'white', alpha = 0.7) +
+        geom_density(color = 'red', linewidth = 1.2) +
+        labs(title = paste('Histograma -', input\$column), x = input\$column, y = 'Densitate') +
         theme_minimal()
     })
 
-    output$qq_plot <- renderPlot({
-      df_plot <- data.frame(sample = values)
-      ggplot(df_plot, aes(sample = sample)) +
-        stat_qq(color = "steelblue", size = 2) +
-        stat_qq_line(color = "red", linewidth = 1.2) +
-        labs(title = paste("Q-Q Plot -", input$column),
-             x = "Cuantile teoretice", y = "Cuantile observate") +
+    output\$qq_plot <- renderPlot({
+      ggplot(data.frame(sample = values), aes(sample = sample)) +
+        stat_qq(color = 'steelblue', size = 2) +
+        stat_qq_line(color = 'red', linewidth = 1.2) +
+        labs(title = paste('Q-Q Plot -', input\$column),
+             x = 'Cuantile teoretice', y = 'Cuantile observate') +
         theme_minimal()
     })
 
-    sw_text <- ""
+    sw_text <- ''
     if (n >= 3 && n <= 5000) {
       sw <- shapiro.test(values)
-      sw_text <- sprintf("Shapiro-Wilk: W=%.4f, p=%.4f (%s)",
-        sw$statistic, sw$p.value,
-        ifelse(sw$p.value > 0.05, "Normal", "Non-normal"))
+      sw_text <- sprintf('Shapiro-Wilk: W=%.4f, p=%.4f (%s)',
+        sw\$statistic, sw\$p.value,
+        ifelse(sw\$p.value > 0.05, 'Normal', 'Non-normal'))
     }
-    ks <- ks.test(values, "pnorm", mean = m, sd = s)
-    ks_text <- sprintf("Kolmogorov-Smirnov: D=%.4f, p=%.4f (%s)",
-      ks$statistic, ks$p.value,
-      ifelse(ks$p.value > 0.05, "Normal", "Non-normal"))
+    ks <- ks.test(values, 'pnorm', mean = m, sd = s)
+    ks_text <- sprintf('Kolmogorov-Smirnov: D=%.4f, p=%.4f (%s)',
+      ks\$statistic, ks\$p.value,
+      ifelse(ks\$p.value > 0.05, 'Normal', 'Non-normal'))
 
     dist_list <- c()
-    if (abs(skew) < 0.5 && abs(kurt - 3) < 0.5) dist_list <- c(dist_list, "NORMALA")
-    if (skew > 0.5 && all(values > 0))           dist_list <- c(dist_list, "LOG-NORMALA")
-    if (abs(skew - 2) < 0.8 && all(values > 0))  dist_list <- c(dist_list, "EXPONENTIALA")
-    if (skew > 0.3 && skew < 2 && all(values > 0)) dist_list <- c(dist_list, "GAMMA")
-    if (all(values >= 0 & values <= 1))           dist_list <- c(dist_list, "BETA")
-    if (length(dist_list) == 0) dist_list <- "Analiza suplimentara necesara"
+    if (abs(skew) < 0.5 && abs(kurt - 3) < 0.5) dist_list <- c(dist_list, 'NORMALA')
+    if (skew > 0.5 && all(values > 0))            dist_list <- c(dist_list, 'LOG-NORMALA')
+    if (abs(skew - 2) < 0.8 && all(values > 0))   dist_list <- c(dist_list, 'EXPONENTIALA')
+    if (skew > 0.3 && skew < 2 && all(values > 0)) dist_list <- c(dist_list, 'GAMMA')
+    if (all(values >= 0 & values <= 1))            dist_list <- c(dist_list, 'BETA')
+    if (length(dist_list) == 0) dist_list <- 'Analiza suplimentara necesara'
 
-    output$test_results <- renderPrint({
-      cat("=== STATISTICI DESCRIPTIVE ===\\n")
-      cat("  N:", n, "\\n")
-      cat("  Medie:", round(m, 4), "\\n")
-      cat("  Mediana:", round(med, 4), "\\n")
-      cat("  SD:", round(s, 4), "\\n")
-      cat("  Skewness:", round(skew, 4), "\\n")
-      cat("  Kurtosis:", round(kurt, 4), "\\n")
-      cat("  Min:", round(mn, 4), "Max:", round(mx, 4), "\\n\\n")
-      cat("=== TESTE DE NORMALITATE ===\\n")
-      cat(sw_text, "\\n")
-      cat(ks_text, "\\n")
+    output\$test_results <- renderPrint({
+      cat('=== STATISTICI DESCRIPTIVE ===\n')
+      cat('  N:', n, '\n  Medie:', round(m,4), '\n  Mediana:', round(med,4),
+          '\n  SD:', round(s,4), '\n  Skewness:', round(skew,4),
+          '\n  Kurtosis:', round(kurt,4), '\n  Min:', round(mn,4),
+          '  Max:', round(mx,4), '\n\n')
+      cat('=== TESTE DE NORMALITATE ===\n')
+      cat(sw_text, '\n', ks_text, '\n')
     })
 
-    output$distribution_suggestions <- renderPrint({
-      cat("=== DISTRIBUTII SUGERATE ===\\n")
-      for (d in dist_list) cat("  *", d, "\\n")
+    output\$distribution_suggestions <- renderPrint({
+      cat('=== DISTRIBUTII SUGERATE ===\n')
+      for (d in dist_list) cat(' *', d, '\n')
     })
 
     prompt <- paste0(
-      "Sunt student si am rulat o analiza statistica a distributiei unui set de date in R. ",
-      "Te rog sa interpretezi rezultatele de mai jos in termeni simpli.\\n\\n",
-      "COLOANA: ", input$column, "\\n",
-      "N=", n, ", Medie=", round(m,4), ", Mediana=", round(med,4),
-      ", SD=", round(s,4), ", Skewness=", round(skew,4),
-      ", Kurtosis=", round(kurt,4), "\\n",
-      sw_text, "\\n", ks_text, "\\n",
-      "Distributii sugerate: ", paste(dist_list, collapse=", "), "\\n\\n",
-      "Te rog: 1) explica skewness si kurtosis; 2) interpreteaza testele de normalitate; ",
-      "3) confirma distributiile sugerate; 4) recomanda metode statistice potrivite."
+      'Sunt student si am rulat o analiza statistica in R. ',
+      'Te rog sa interpretezi rezultatele de mai jos in termeni simpli.\n\n',
+      'COLOANA ANALIZATA: ', input\$column, '\n',
+      'N=', n, ', Medie=', round(m,4), ', Mediana=', round(med,4),
+      ', SD=', round(s,4), ', Skewness=', round(skew,4),
+      ', Kurtosis=', round(kurt,4), '\n',
+      'Min=', round(mn,4), ', Max=', round(mx,4), '\n',
+      sw_text, '\n', ks_text, '\n',
+      'Distributii sugerate: ', paste(dist_list, collapse=', '), '\n\n',
+      'Te rog: 1) explica valorile skewness si kurtosis; ',
+      '2) interpreteaza testele de normalitate; ',
+      '3) confirma distributiile sugerate; ',
+      '4) recomanda metode statistice potrivite pentru aceste date.'
     )
-
     stats_text(prompt)
     analysis_done(TRUE)
-    showNotification("Analiza completa!", type = "message")
+    showNotification('Analiza completa! Poti interpreta cu AI.', type = 'message')
   })
 }
 
 shinyApp(ui, server)
 `;
 
-  // Inițializare Shinylive
-  async function initApp() {
-    try {
-      await shinylive.run({
-        language: "r",
-        code: appCode,
-        container: document.getElementById("shinylive-container"),
-        packages: ["ggplot2", "moments"],
-        onReady: function() {
-          document.getElementById("loading").style.display = "none";
-          document.getElementById("app").style.display = "block";
-        }
-      });
-    } catch (err) {
-      document.getElementById("loading").innerHTML =
-        '<p style="color:red;">❌ Eroare la încărcare: ' + err.message + '</p>';
-    }
+window.addEventListener('load', async () => {
+  try {
+    await shinylive.run({
+      language: 'r',
+      code: appCode,
+      container: document.getElementById('shinylive-container'),
+      onReady: () => {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('shinylive-container').style.display = 'block';
+      }
+    });
+  } catch(e) {
+    document.getElementById('loading').innerHTML =
+      '<p style="color:red;padding:20px;">Eroare la incarcare: ' + e.message +
+      '<br><br>Incearca sa reimprospatezi pagina (F5).</p>';
   }
-
-  window.addEventListener("load", initApp);
+});
 </script>
 </body>
 </html>
